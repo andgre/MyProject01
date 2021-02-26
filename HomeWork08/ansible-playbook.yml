@@ -1,0 +1,83 @@
+---
+- name: Set TimeZone
+  hosts: all
+  become: yes
+  tasks:
+    - name: Set timezone variables
+      copy:
+        src: /etc/timezone
+        dest: /etc/timezone
+      notify: update timezone
+  handlers:
+    - name: update timezone
+      command: dpkg-reconfigure --frontend noninteractive tzdata
+
+- name: install Dev enviroment
+  hosts: dev
+  become: yes
+  tasks:
+    - name: Ensure Dev-apps are present
+      apt:
+        pkg:
+          - maven
+          - git
+        update_cache: yes
+        state: latest
+    - name: Is artifact exists
+      stat:
+        path: /opt/myapp/target/Puzzle15-1.0-SNAPSHOT.war
+      register: app_war
+    - name: git clone java app
+      git:
+        repo: https://github.com/venkaDaria/puzzle15.git
+        dest: /opt/myapp
+      when: not app_war.stat.exists
+    - name: change pom.xml
+      lineinfile:
+        path: /opt/myapp/pom.xml
+        regexp: '^</project>'
+        line: <properties><maven.compiler.source>1.8</maven.compiler.source><maven.compiler.target>1.8</maven.compiler.target></properties></project>
+      when: not app_war.stat.exists
+    - name: build app
+      command: "mvn war:war"
+      args:
+        chdir: "/opt/myapp/"
+      #when: not app_war.stat.exists
+    - name: Pull war artifact
+      fetch:
+        src: /opt/myapp/target/Puzzle15-1.0-SNAPSHOT.war
+        dest: /opt
+
+- name: install Prod enviroment
+  hosts: prod
+  become: yes
+  tasks:
+    - name: Ensure Prod-apps are present
+      apt:
+        pkg:
+          - tomcat9
+          - git
+        update_cache: yes
+        state: latest
+    - name: Ensure tomcat is started
+      service:
+        name: tomcat9
+        state: started
+    - name: Push war artifact
+      ## Two methods below need to set up public key authentication
+      ## [dev]#35.228.242.166  ##[prod]#35.228.97.111
+      #synchronize:
+      #  mode: push
+      #  src: /opt/myapp/target/Puzzle15-1.0-SNAPSHOT.war
+      #  dest: /var/lib/tomcat9/webapps/Puzzle15-1.0-SNAPSHOT.war
+      #delegate_to: 35.228.242.166
+      #################################################################
+      ## this one is the shortest
+      #shell: scp root@35.228.242.166:/opt/myapp/target/Puzzle15-1.0-SNAPSHOT.war /var/lib/tomcat9/webapps/
+      copy:
+        src: /opt/35.228.242.166/opt/myapp/target/Puzzle15-1.0-SNAPSHOT.war
+        dest: /var/lib/tomcat9/webapps
+
+
+
+

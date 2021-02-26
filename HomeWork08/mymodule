@@ -1,0 +1,51 @@
+#!/bin/bash
+### Check using bash
+# echo 'dest=/opt/myapp phase="clean war:war"' > args
+# bash -x mymodule args
+### testing with ansible
+# ansible -c local -i 'localhost,'  -M . -m mymodule -a  'dest=/opt/myapp phase="war:war"' all
+function mvn_package
+  {
+            if [ -d "$dest" ]; then
+                        cd $dest
+                        changed="true"
+                        msg="change dir"
+                        output=$(mvn $phase 2>&1 | python -c 'import json,sys; print json.dumps(sys.stdin.read())')
+                        if [ $? -ne 0 ]; then
+                                printf '{"failed": true, "msg": "error command ", "output": %s}' "$output"
+                                exit 1
+                        fi
+       else
+                changed="false"
+                msg="directory does not exists"
+                contents='""'
+                exit 1
+        fi
+  }
+
+source $1
+ if [ -z "$dest" ]; then
+     printf '{"failed": true, "msg": "missing required arguments: dest"}'
+     exit 1
+ fi
+ if [ -z "$phase" ]; then
+     printf '{"failed": true, "msg": "missing required arguments: phase"}'
+     exit 1
+ fi
+
+changed="false"
+msg=""
+contents=""
+
+#case $phase in
+#    package)
+#        mvn_package
+#        ;;
+#    *)
+#        printf '{"failed": true, "msg": "invalid phase: %s"}' "$phase"
+#        exit 1
+#        ;;
+#esac
+mvn_package
+printf '{"changed": %s, "msg": "%s", "contents": %s}' "$changed" "$msg" "$output"
+exit 0
